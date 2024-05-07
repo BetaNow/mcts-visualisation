@@ -57,10 +57,11 @@ export class Node {
      * @returns {void}
      */
     private setUCT (): void {
-        if (this._visits === 0) {  // If the current node has not been visited yet.
-            this._UCT = Number.MAX_VALUE;
-        } else if (this._PARENT) {
-            this._UCT = this._value + Math.sqrt(2 * Math.log(this._PARENT.visits) / this._visits);
+        if (this.PARENT !== null) {
+            let exploitation: number = this.value / this.visits;
+            let exploration: number = Math.sqrt(2 * Math.log(this.PARENT.visits) / this.visits);
+
+            this._UCT = exploitation + exploration;
         }
     }
 
@@ -79,11 +80,10 @@ export class Node {
      * @method update
      * @description Updates the value of the current node.
      *
-     * @param {Node} node - The node to update.
      * @param {number} winner - The winner of the game.
      * @returns {void}
      */
-    public update (node: Node, winner: number): void {
+    public update (winner: number): void {
         // Update the value of the current node.
         switch (winner) {
             case TicTacToe.MACHINE:
@@ -98,7 +98,7 @@ export class Node {
         }
 
         this._visits++;  // Increment the number of visits of the current node.
-        this.setUCT();   // Update the UCT value of the current node.
+        this.setUCT();  // Update the UCT value of the current node.
     }
 
     /**

@@ -128,7 +128,7 @@ export class MCTS {
      */
     private backPropagate (node: Node, winner: number): void {
         while (node !== null) {
-            node.update(node, winner);
+            node.update(winner);
             node = node.PARENT;
         }
     }

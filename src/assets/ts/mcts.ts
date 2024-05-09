@@ -1,159 +1,173 @@
-import { Node } from './node';
+import { Node } from "./node";
 import { TicTacToe } from "./tictactoe";
 
 /**
  * @class MCTS
- * @description The Monte Carlo Tree Search algorithm.
+ * @description Represents the Monte Carlo Tree Search algorithm
  *
- * @property {Node} _ROOT - The root node of the tree.
- * @property {TicTacToe} _SIMULATION - The TicTacToe game.
- * @property {Node} _bestMove - The best move of the current state.
+ * @property {Node} _ROOT - The root node of the MCTS tree
+ * @property {Node} _bestNode - The best node found by the MCTS algorithm
  */
 export class MCTS {
 
-    private readonly _ROOT: Node;
-    
-    private readonly _SIMULATION: TicTacToe;
+    // ___ PROPERTIES ___ //
 
-    private _bestMove: Node;
+    private readonly _ROOT: Node;
+    private _bestNode: Node;
+
+    // ___ CONSTRUCTOR ___ //
 
     /**
      * @constructor
-     * @description The constructor of the MCTS class.
+     * @description Creates a new MCTS instance
      *
-     * @param {number[]} state - The current state.
-     * @param {number} player - The player of the current state.
+     * @param {number[]} board - The board state
+     * @param {number} player - The player to move
      */
-    constructor (state: number[], player: number) {
-        this._ROOT = new Node(null, player, state, -1);
-        this._SIMULATION = new TicTacToe();
-        this._bestMove = this._ROOT;
+    constructor (board: number [], player: number) {
+        this._ROOT = new Node(null, player, board, -1);
+        this._bestNode = this._ROOT;
     }
 
-    /**
-     * @method search
-     * @description The Monte Carlo Tree Search algorithm.
-     *
-     * @param {number} iterations - The number of iterations.
-     * @returns {void}
-     */
-    public search (iterations: number = 100): void {
-        // For each iteration. (Selection, Expansion, Simulation, Backpropagation)
-        for (let i = 0; i < iterations; i++) {
-            let node: Node = this.select();
-            let child: Node = this.expand(node);
-            let winner: number = this.simulate(child);
-            this.backPropagate(child, winner);
-        }
-        this._bestMove = this._ROOT.getBestChild();
-    }
+    // ___ PRIVATE METHODS ___ //
 
     /**
      * @method select
-     * @description The selection phase of the Monte Carlo Tree Search algorithm.
-     * @description Select the best child node.
-     * @private
+     * @description Selects the best node to explore next
      *
-     * @returns {Node} - The selected node.
+     * @param {Node} node - The node to select from
+     * @return {Node} The selected node
+     * @private
      */
-    private select (): Node {
-        let node: Node = this._ROOT;
-        while (!node.isLeaf() && node.isFullyExpanded()) {
-            node = node.getBestChild();
+    private select (node: Node): Node {
+        let current: Node = this._ROOT;
+
+        while (true) {
+            if (current.isTerminal()) {
+                return current;
+            }
+
+            if (current.isLeaf()) {
+                this.expand(current);
+                return current.getChild(0);
+            } else {
+                current = current.findBestChild();
+
+                if (current.getProperty('_visits') === 0) {
+                    return current;
+                }
+            }
         }
-        return node;
     }
 
     /**
      * @method expand
-     * @description The expansion phase of the Monte Carlo Tree Search algorithm.
-     * @description Expand the selected node.
-     * @private
+     * @description Expands the children of the given node
      *
-     * @param {Node} node - The selected node.
-     * @returns {Node} - The expanded node.
+     * @param {Node} node - The node to expand
+     * @return {void}
+     * @private
      */
-    private expand (node: Node): Node {
-        // Get a random legal action.
-        let actions: number[] = TicTacToe.getLegalActions(node.STATE);
-        let action: number = actions[Math.floor(Math.random() * actions.length)];
-        let state: number[] = node.STATE.slice();
-        state[action] = TicTacToe.getOtherPlayer(node.PLAYER);
+    private expand (node: Node): void {
+        const legalMoves: number[] = TicTacToe.getLegalMoves(node.getProperty('_BOARD'));
 
-        // Create a new child node.
-        let child: Node = new Node(node, 1 - node.PLAYER, state, action);
-        node.addChild(child);
-        return child;
+        for (let move of legalMoves) {
+            const board: number[] = TicTacToe.cloneBoard(node.getProperty('_BOARD'));
+            const player = TicTacToe.getOpponent(node.getProperty('_PLAYER'));
+
+            board[move] = player;
+            node.addChild(new Node(node, player, board, move));
+        }
     }
 
     /**
      * @method simulate
-     * @description The simulation phase of the Monte Carlo Tree Search algorithm.
-     * @description Simulate the game until the end.
-     * @private
+     * @description Simulates a game from the given node
      *
-     * @param {Node} node - The expanded node.
-     * @returns {number} - The winner of the simulation.
+     * @param {Node} node - The node to simulate from
+     * @return {number} The winner of the game
+     * @private
      */
     private simulate (node: Node): number {
-        // Copy the current state.
-        let state: number[] = node.STATE.slice();
-        let player: number = TicTacToe.getOtherPlayer(node.PLAYER);
-        let winner: number = this._SIMULATION.getWinner(state);
+        let board: number[] = TicTacToe.cloneBoard(node.getProperty('_BOARD'));
+        let player: number = node.getProperty('_PLAYER');
+        let winner: number = TicTacToe.getWinner(board);
 
-        // While the game continues.
-        while (winner === TicTacToe.GAME_CONTINUES) {
-            // Play a random move.
-            let actions: number[] = TicTacToe.getLegalActions(state);
-            let action: number = actions[Math.floor(Math.random() * actions.length)];
-            state[action] = player;
-            // Switch the player.
-            player = TicTacToe.getOtherPlayer(player);
-            // Check if there is a winner.
-            winner = this._SIMULATION.getWinner(state);
+        while (winner === TicTacToe.GAME_CONTINUE) {
+            let legalMoves: number[] = TicTacToe.getLegalMoves(board);
+            let move: number = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+
+            board[move] = player;
+            winner = TicTacToe.getWinner(board);
+            player = TicTacToe.getOpponent(player);
         }
-        
+
         return winner;
     }
 
     /**
      * @method backPropagate
-     * @description The backpropagation phase of the Monte Carlo Tree Search algorithm.
-     * @description Update the value of the nodes.
-     * @private
+     * @description Back-propagates the result of the simulation
      *
-     * @param {Node} node - The expanded node.
-     * @param {number} winner - The winner of the simulation.
-     * @returns {void}
+     * @param {Node} node - The node to back-propagate from
+     * @param {number} winner - The winner of the simulation
+     * @return {void}
+     * @private
      */
     private backPropagate (node: Node, winner: number): void {
         while (node !== null) {
             node.update(winner);
-            node = node.PARENT;
+            node = node.getProperty('_PARENT');
         }
     }
 
-
-    // ___ Getters ___ //
+    // ___ PUBLIC METHODS ___ //
 
     /**
-     * @method ROOT
-     * @getter The root node of the tree.
+     * @method search
+     * @description Searches for the best node using the MCTS algorithm
      *
-     * @returns {Node} - The root node of the tree.
+     * @param {number} iterations - The number of iterations to perform
+     * @return {Node} The best node found
+     */
+    public search (iterations: number): Node {
+        for (let i = 0; i < iterations; i++) {
+            let node: Node = this.select(this._ROOT);
+            let winner: number = this.simulate(node);
+            this.backPropagate(node, winner);
+        }
+
+        let visits: number = 0;
+        this._ROOT.getProperty('_children').forEach((child: Node) => {
+            if (child.getProperty('_visits') > visits) {
+                this._bestNode = child;
+                visits = child.getProperty('_visits');
+            }
+        });
+
+        TicTacToe.printBoard(this._bestNode.getProperty('_BOARD'));
+        return this._bestNode;
+    }
+
+    // ___ GETTERS ___ //
+
+    /**
+     * @method get ROOT
+     * @description Returns the root node of the MCTS tree
+     *
+     * @return {Node} The root node
      */
     public get ROOT (): Node {
         return this._ROOT;
     }
 
     /**
-     * @method bestMove
-     * @getter The best move of the current state.
+     * @method get bestNode
+     * @description Returns the best node found by the MCTS algorithm
      *
-     * @returns {Node} - The best move of the current state.
+     * @return {Node} The best node
      */
-    public get bestMove (): Node {
-        return this._bestMove;
+    public get bestNode (): Node {
+        return this._bestNode;
     }
-
 }

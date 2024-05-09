@@ -2,247 +2,193 @@ import { TicTacToe } from "./tictactoe";
 
 /**
  * @class Node
- * @description The Node class represents a node in the Monte Carlo Tree Search algorithm.
+ * @description Represents a node in the MCTS tree
  *
- * @property {Node | null} _PARENT - The parent node of the current node.
- * @property {number} _ACTION - The action that led to the current node.
- * @property {number[]} _STATE - The state of the current node.
- * @property {number} _value - The value of the current node.
- * @property {number} _UCT - The UCT value of the current node.
- * @property {number} _visits - The number of visits of the current node.
- * @property {Node[]} _children - The children of the current node.
- * @property {number} _winner - The winner of the current node.
+ * @property {Node} _PARENT - The parent node
+ * @property {number} _PLAYER - The player that made the move to reach this node
+ * @property {number[][]} _BOARD - The board state at this node
+ * @property {number} _MOVE - The move that was made to reach this node
+ *
+ * @property {Node[]} _children - The children of this node
+ * @property {number} _visits - The number of times this node has been visited
+ * @property {number} _wins - The number of times this node has resulted in a win
+ * @property {number} _draws - The number of times this node has resulted in a draw
+ * @property {number} _losses - The number of times this node has resulted in a loss
+ * @property {number} _UCT - The Upper Confidence Bound for Trees value of this node
+ * @property {number} _winner - The winner of the game at this node
  */
 export class Node {
 
-    private readonly _PARENT: Node | null = null;
+    // ___ PROPERTIES ___ //
 
-    private readonly _ACTION: number;
-
-    private readonly _STATE: number[];
-
+    private readonly _PARENT: Node | null;
     private readonly _PLAYER: number;
-
-    private _value: number = 0;
-
-    private _UCT: number = 0;
-
-    private _visits: number = 0;
+    private readonly _BOARD: number[];
+    private readonly _MOVE: number;
 
     private _children: Node[] = [];
+    private _visits: number = 0;
+    private _wins: number = 0;
+    private _draws: number = 0;
+    private _losses: number = 0;
+    private _UCT: number = 0;
+    private _winner: number = TicTacToe.GAME_CONTINUE;
 
-    private _winner: number = TicTacToe.GAME_CONTINUES;
+    // ___ CONSTRUCTOR ___ //
 
     /**
      * @constructor
-     * @description The constructor of the Node class.
+     * @description Creates a new Node instance
      *
-     * @param {Node | null} parent - The parent node of the current node. If the current node is the root node, the parent node is null.
-     * @param {number} player - The player of the current node.
-     * @param {number} action - The action that led to the current node.
-     * @param {number[]} state - The state of the current node.
+     * @param {Node} parent - The parent node
+     * @param {number} player - The player that made the move to reach this node
+     * @param {number[]} board - The board state at this node
+     * @param {number} move - The move that was made to reach this node
      */
-    constructor (parent: Node | null, player: number, state: number[], action: number) {
+    constructor (parent: Node | null, player: number, board: number[], move: number) {
         this._PARENT = parent;
-        this._PLAYER = player
-        this._STATE = state;
-        this._ACTION = action;
+        this._PLAYER = player;
+        this._BOARD = board;
+        this._MOVE = move;
     }
+
+    // ___ METHODS ___ //
 
     /**
      * @method setUCT
-     * @description Sets the UCT value of the current node.
-     * @link https://en.wikipedia.org/wiki/Monte_Carlo_tree_search#Exploration_and_exploitation
+     * @description Sets the UCT value of this node
      *
-     * @returns {void}
+     * @return {void}
      */
-    private setUCT (): void {
-        if (this.PARENT !== null) {
-            let exploitation: number = this.value / this.visits;
-            let exploration: number = Math.sqrt(2 * Math.log(this.PARENT.visits) / this.visits);
-
+    public setUCT (): void {
+        if (this._visits === 0) {
+            this._UCT = Number.MAX_VALUE;
+        } else {
+            let exploitation: number = (this._wins + this._draws / 2) / this._visits;
+            let exploration: number = Math.sqrt(2) * Math.sqrt(Math.log(this._PARENT.getProperty('_visits')) / this._visits);
             this._UCT = exploitation + exploration;
         }
     }
 
     /**
-     * @method addChild
-     * @description Adds a child to the current node.
+     * @method isLeaf
+     * @description Determines if this node is a leaf node
      *
-     * @param {Node} child - The child to add.
-     * @returns {void}
+     * @return {boolean} - True if this node is a leaf node, false otherwise
      */
-    public addChild (child: Node): void {
-        this._children.push(child);
+    public isLeaf (): boolean {
+        return this._children.length === 0;
+    }
+
+    /**
+     * @method isTerminal
+     * @description Determines if this node is a terminal node
+     *
+     * @return {boolean} - True if this node is a terminal node, false otherwise
+     */
+    public isTerminal (): boolean {
+        return this._winner !== TicTacToe.GAME_CONTINUE;
+    }
+
+    /**
+     * @method findBestChild
+     * @description Finds the best child node of this node
+     *
+     * @return {Node} - The best child node
+     */
+    public findBestChild (): Node {
+        this._children.forEach((child: Node) => child.setUCT());
+        this._children.sort((a: Node, b: Node) => b.getProperty('_UCT') - a.getProperty('_UCT'));
+
+        return this.getChild(0);
     }
 
     /**
      * @method update
-     * @description Updates the value of the current node.
+     * @description Updates the node with the result of a simulation
      *
-     * @param {number} winner - The winner of the game.
-     * @returns {void}
+     * @param {number} winner - The winner of the game
+     * @return {void}
      */
     public update (winner: number): void {
-        // Update the value of the current node.
         switch (winner) {
-            case TicTacToe.MACHINE:
-                this._value += 1;
+            case TicTacToe.GAME_DRAW:
+                this._draws++;
                 break;
-            case TicTacToe.HUMAN:
-                this._value -= 1;
+            case this._PLAYER:
+                this._wins++;
                 break;
-            case TicTacToe.GAME_CONTINUES:
-                this._value += 0;
+            default:
+                this._losses++;
                 break;
         }
+        this._visits++;
+    }
 
-        this._visits++;  // Increment the number of visits of the current node.
-        this.setUCT();  // Update the UCT value of the current node.
+    // ___ GETTERS & SETTERS ___ //
+
+    /**
+     * @method getProperty
+     * @description Gets the value of a property
+     *
+     * @param {string} property - The property to get the value of
+     * @return {any} - The value of the property
+     */
+    public getProperty (property: string): any {
+        return this[property];
     }
 
     /**
-     * @method getBestChild
-     * @description Returns the best child of the current node.
+     * @method getChild
+     * @description Gets the child node at the specified index
      *
-     * @returns {Node} - The best child of the current node.
+     * @param {number} index - The index of the child node to get
+     * @return {Node} - The child node at the specified index
      */
-    public getBestChild (): Node {
-        let bestChild: Node = this.children[0];
-        this.children.forEach(child => {
-            if (child.UCT > bestChild.UCT) {
-                bestChild = child;
-            }
-        });
-        return bestChild;
+    public getChild (index: number): Node {
+        return this._children[index];
     }
 
     /**
-     * @method isLeaf
-     * @description Check if the current node is a leaf node.
+     * @method setProperty
+     * @description Sets the value of a property
      *
-     * @returns {boolean} - True if the current node is a leaf node, false otherwise.
+     * @param {string} property - The property to set the value of
+     * @param {any} value - The value to set the property to
+     * @return {void}
      */
-    public isLeaf (): boolean {
-        return this.children.length === 0;
-    }
-
-    /**
-     * @method isFullyExpanded
-     * @description Check if the current node is fully expanded.
-     *
-     * @returns {boolean} - True if the current node is fully expanded, false otherwise.
-     */
-    public isFullyExpanded (): boolean {
-        return this.children.length === TicTacToe.getLegalActions(this._STATE).length;
-    }
-
-    // ___ Getters ___ //
-
-    /**
-     * @method PARENT
-     * @getter The parent node of the current node.
-     *
-     * @returns {Node | null} - The parent node of the current node.
-     */
-    public get PARENT (): Node | null {
-        return this._PARENT;
-    }
-
-    /**
-     * @method ACTION
-     * @getter The action that led to the current node.
-     *
-     * @returns {number} - The action that led to the current node.
-     */
-    public get ACTION (): number {
-        return this._ACTION;
-    }
-
-    /**
-     * @method STATE
-     * @getter The state of the current node.
-     *
-     * @returns {number[]} - The state of the current node.
-     */
-    public get STATE (): number[] {
-        return this._STATE;
-    }
-
-    /**
-     * @method PLAYER
-     * @getter The player of the current node.
-     *
-     * @returns {number} - The player of the current node.
-     */
-    public get PLAYER (): number {
-        return this._PLAYER;
-    }
-
-    /**
-     * @method value
-     * @getter The value of the current node.
-     *
-     * @returns {number} - The value of the current node.
-     */
-    public get value (): number {
-        return this._value;
-    }
-
-    /**
-     * @method UCT
-     * @getter The UCT value of the current node.
-     *
-     * @returns {number} - The UCT value of the current node.
-     */
-    public get UCT (): number {
-        return this._UCT;
-    }
-
-    /**
-     * @method visits
-     * @getter The number of visits of the current node.
-     *
-     * @returns {number} - The number of visits of the current node.
-     */
-    public get visits (): number {
-        return this._visits;
-    }
-
-    /**
-     * @method children
-     * @getter The children of the current node.
-     *
-     * @returns {Node[]} - The children of the current node.
-     */
-    public get children (): Node[] {
-        return this._children;
-    }
-
-    /**
-     * @method winner
-     * @getter The winner of the current node.
-     *
-     * @returns {number} - The winner of the current node.
-     */
-    public get winner (): number {
-        return this._winner;
-    }
-
-
-    // ___ Setters ___ //
-
-    /**
-     * @method value
-     * @setter The value of the current node.
-     *
-     * @param {number} winner - The value to set.
-     */
-    public set winner (winner: number) {
-        if (winner < TicTacToe.GAME_CONTINUES || winner > TicTacToe.DRAW) {
-            throw new Error("Invalid winner value.");
-        } else {
-            this._winner = winner;
+    public setProperty (property: string, value: any): void {
+        // Handle read-only properties, and properties that should not be set directly
+        switch (property) {
+            case '_PARENT':
+            case '_PLAYER':
+            case '_BOARD':
+            case '_MOVE':
+                throw new Error('Property is read-only');
+            case '_children':
+                throw new Error('Cannot set children directly, use addChild()');
+            case '_UCT':
+                throw new Error('Cannot set UCT directly, use setUCT()');
+            case '_visits':
+            case '_wins':
+            case '_draws':
+            case '_losses':
+            case '_winner':
+                this[property] = value;
+                break;
+            default:
+                throw new Error('Property does not exist');
         }
+    }
+
+    /**
+     * @method addChild
+     * @description Adds a child node to this node
+     *
+     * @param {Node} child - The child node to add
+     * @return {void}
+     */
+    public addChild (child: Node): void {
+        this._children.push(child);
     }
 }
